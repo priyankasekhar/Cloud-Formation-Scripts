@@ -1,0 +1,156 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+ 
+  "Description" : "AWS CloudFormation template for OpenVPN.",
+ 
+  "Parameters" : {
+    "EnvironmentName": {
+      "Type": "String",
+      "Description": "Select the target environment",
+      "AllowedValues" : ["dev", "qa"]
+    },
+    "KeyName": {
+      "Description" : “KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription" : "EC2 KeyPair should exist”
+    },
+    "SubnetID": {
+      "Description": "Choose the SubnetID to attach with the EC2 Instance",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+     
+    "VPCID": {
+      "Description": "Choose the VPC ID to attach with the EC2 Instance",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+ 
+    "InstanceType" : {
+      "Description" : "Select the OpenVPN EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro”,
+      "AllowedValues" : [ "t2.micro", "t2.small"]
+,
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+ 
+    “IPaddress“ : {
+      "Description" : "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "167.219.0.140/32",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+},
+  },
+ 
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t2.micro"    : { "Arch" : "HVM64"  },
+      "t2.small"    : { "Arch" : "HVM64"  }
+ 
+    },
+ 
+    "AWSInstanceType2NATArch" : {
+      "t2.micro"    : { "Arch" : "NATHVM64"  },
+      "t2.small"    : { "Arch" : "NATHVM64"  }
+ 
+    }
+,
+    "AWSRegionArch2AMI" : {
+      "us-east-2"        : {"PV64" : "ami-2a69aa47", "HVM64" : "ami-6869aa05", "HVMG2" : "ami-bb18efad"}
+    }
+ 
+  },
+ 
+  "Resources" : {
+ 
+    "EC2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType" : { "Ref" : "InstanceType" },
+ 
+        "ImageId": "ami-ae3e64cb",
+        "KeyName" : { "Ref" : "KeyName" },
+ 
+                        "Tags": [
+                            {
+                              "Key": "Name",
+                              "Value": "ec2-openvpn-01”
+                            }
+                          ],
+                          "NetworkInterfaces": [
+                            {
+                            "DeleteOnTermination": "true",
+                            "Description": "Primary network interface",
+                            "DeviceIndex": 0,
+                            "SubnetId": {
+                              "Ref": "SubnetID"
+                            },
+                            "GroupSet": [
+                              {
+                                "Ref": "InstanceSecurityGroup"
+                              }
+                            ],
+                            "AssociatePublicIpAddress": "true",
+                            }] ,
+      }
+    },
+ 
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "VpcId": {"Ref": "VPCID"},
+        "GroupDescription" : "This is to open the ports required for OpenVPN from specific location, SSH access via port 22",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : { "Ref" : “IPaddress”}
+        },
+        {
+          "IpProtocol" : "udp",
+          "FromPort" : "1194",
+          "ToPort" : "1194",
+          "CidrIp" : { "Ref" : "IPaddress"}
+        },
+        {
+          "IpProtocol" : "tcp",
+          "FromPort" : "943",
+          "ToPort" : "943",
+          "CidrIp" : { "Ref" : "IPaddress"}
+        },
+        {
+          "IpProtocol" : "tcp",
+          "FromPort" : "443",
+          "ToPort" : "443",
+          "CidrIp" : { "Ref" : "IPaddress"}
+        }],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "sg-openvpn-01"
+          }]
+      }
+    }
+  },
+ 
+  "Outputs" : {
+    "InstanceId" : {
+      "Description" : "InstanceId of the newly created EC2 instance",
+      "Value" : { "Ref" : "EC2Instance" }
+    },
+    "AZ" : {
+      "Description" : "Availability Zone of the newly created EC2 instance",
+      "Value" : { "Fn::GetAtt" : [ "EC2Instance", "AvailabilityZone" ] }
+    },
+    "PublicDNS" : {
+      "Description" : "Public DNSName of the newly created EC2 instance",
+      "Value" : { "Fn::GetAtt" : [ "EC2Instance", "PublicDnsName" ] }
+    },
+    "PublicIP" : {
+      "Description" : "Public IP address of the newly created EC2 instance",
+      "Value" : { "Fn::GetAtt" : [ "EC2Instance", "PublicIp" ] }
+    }
+  }
+}
